@@ -9,36 +9,34 @@ void j1850:: wait_idle(void)    {
   }
   }
 void j1850::Cardone_j1850vpw_ouput(int output_pin, bool state){
+
 if(state){
 digitalWrite(output_pin,HIGH);
 pinMode(output_pin,OUTPUT);
-
 }
 else{
-digitalWrite(output_pin,0);
+digitalWrite(output_pin,LOW);
 pinMode(output_pin,INPUT);
+
 }
 }
 
-void j1850::init(int in_pin_, int out_pin_, bool review_) {
+void j1850::init(int in_pin_, int out_pin_) {
   out_pin = out_pin_;
   in_pin = in_pin_;
-  review = review_;
+  digitalWrite(in_pin,HIGH);
   pinMode(in_pin,INPUT);
-  digitalWrite(in_pin,LOW);
   passive();
+  TCCR1B=1<<(CS10); 
   if_init = true;
+ 
 }
 bool j1850::is_active(void) {
   return digitalRead(in_pin);
 }
-void j1850::start_timer() {   
-  TCCR1A=0;
-  TCCR1B=0;
-  TCNT1=0;
-  TIFR1=bit(TOV1);
-  TIMSK1=1<<(TOIE1);
-  TCCR1B=1<<(CS10);
+void j1850::start_timer() { 
+  TCCR1A=0; 
+  TCNT1=0;  
   }
 unsigned int j1850::read_timer(void) {
   return TCNT1; }
@@ -52,7 +50,6 @@ void j1850::passive(void) {
 bool j1850::j1850vpw_send(int size, ...) {
   if (size == 0)
     return false;
-
   byte *buffer = new byte[size];
   bool result = false;
   va_list ap;
@@ -74,20 +71,21 @@ bool j1850::send(byte *msg_buf, int nbytes) {
   msg_buf[nbytes] = crc(msg_buf, nbytes);
   nbytes++;
   bool f = send_msg(msg_buf, nbytes);
+  monitor();
+  return f;
 }
 bool j1850::send_msg(byte *msg_buf, int nbytes) {
   int nbits;
   byte temp_byte;
   tx_msg_buf = msg_buf;
   tx_nbyte = nbytes;
-  uint16_t delay;
   if (nbytes > 12) {
     message = ERROR_MESSAGE_TOO_LONG;
     return false;
   }
 wait_idle();
-start_timer();
 active();
+start_timer();
 while(read_timer()<TX_SOF/0.0625);
  
 do
@@ -95,13 +93,12 @@ do
     temp_byte = *msg_buf; // store byte temporary
     nbits = 8;
     while (nbits--)   // send 8 bits
-    {
+    { 
       if(nbits & 1) // start allways with passive symbol
-      {
-        passive();  // set bus passive
-        start_timer();
-        delay = (temp_byte & 0x80) ? TX_LONG : TX_SHORT;  // send correct pulse lenght
-        while (read_timer() <= delay/0.0625)  // wait
+      { start_timer();
+        delay = (temp_byte & 0x80) ? TX_LONG : TX_SHORT;  // send correct pulse lenght 
+        passive();  // set bus passive    
+        while (read_timer() <= delay/0.0625-40/0.0625)  // wait
         {
           if(is_active())  // check for bus error
           {  message=RETURN_CODE_BUS_ERROR;
@@ -111,9 +108,9 @@ do
       }
       else  // send active symbol
       {
-        active(); // set bus active
         start_timer();
         delay = (temp_byte & 0x80) ? TX_SHORT : TX_LONG;  // send correct pulse lenght
+        active(); // set bus active 
         while (read_timer() <= delay/0.0625); // wait
         // no error check needed, ACTIVE dominates
       }
@@ -132,7 +129,7 @@ bool j1850::recv_msg(byte *msg_buf) {
   int nbits, nbytes;
   bool bit_state;
   rx_msg_buf = msg_buf;
-
+  
   start_timer();
   while (!is_active()) {
     if (read_timer() > WAIT_100us/0.0625) {
@@ -195,17 +192,19 @@ bool j1850::recv_msg(byte *msg_buf) {
 bool j1850::accept(byte *msg_buf) {
   if (!if_init)
     return false;
-
   bool f = recv_msg(msg_buf);
 
   if (f) {
     if (msg_buf[rx_nbyte - 1] != crc(msg_buf, rx_nbyte - 1)) {
       f = false;
       message = ERROR_ACCEPT_CRC;
+    }else{
+      message=MESSAGE_ACCEPT_OK;
+      monitor();
     }
     
   }
-  monitor();
+  
   return f;
 }
 void j1850::monitor(void) {

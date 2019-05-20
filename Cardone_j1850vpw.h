@@ -26,10 +26,10 @@
 #define RETURN_CODE_BUS_ERROR 9
 class j1850 {
 
-public:
+private:
 void monitor(void);
 void sendToUART(const char *header, int rx_nbyte, byte *msg_buf);
-bool accept(byte *msg_buf);
+
 bool recv_msg(uint8_t *msg_buf );
 byte *rx_msg_buf;
 byte *tx_msg_buf;
@@ -44,14 +44,18 @@ void Cardone_j1850vpw_ouput(int output_pin, bool state);
 bool send(byte *msg_buf, int nbytes);
 byte crc(byte *msg_buf, int nbytes);
 bool send_msg(byte *, int);
-bool j1850vpw_send(int size, ...);
 void active(void);
 void passive(void);
-void init(int, int, bool monitor_ = false);
 int in_pin = 0;
 int out_pin = 0;
 bool if_init = false;
-bool review = false;
 void  wait_idle(void);
+uint16_t delay;
+unsigned long timer;
+public:
+
+bool accept(byte *msg_buf);
+void init(int, int);
+bool j1850vpw_send(int size, ...);
 };
 #endif
